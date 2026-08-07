@@ -14,6 +14,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/useAuthStore";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
@@ -37,12 +38,11 @@ export default function Documentos() {
   );
 
   const cargarDatos = () => {
-    // Si es jefe, ve todo. Si es empleado, solo ve los públicos.
-    const queryDocs = isJefe
+    const query = isJefe
       ? "SELECT * FROM documentos ORDER BY id DESC"
       : "SELECT * FROM documentos WHERE visibilidad = 'Publico' OR visibilidad IS NULL ORDER BY id DESC";
 
-    setDocumentos(db.getAllSync(queryDocs));
+    setDocumentos(db.getAllSync(query));
     setCategorias(db.getAllSync("SELECT * FROM categorias_documentos"));
   };
 
@@ -74,31 +74,35 @@ export default function Documentos() {
 
   const opcionesCarpeta = (cat) => {
     if (!isJefe) return;
-    Alert.alert("Opciones", `¿Qué deseas hacer con "${cat.nombre}"?`, [
-      {
-        text: "Editar",
-        onPress: () => {
-          setCarpetaEditando(cat);
-          setNombreCarpeta(cat.nombre);
-          setModalCarpeta(true);
+    Alert.alert(
+      "Gestión de Carpeta",
+      `¿Qué deseas hacer con "${cat.nombre}"?`,
+      [
+        {
+          text: "Editar Nombre",
+          onPress: () => {
+            setCarpetaEditando(cat);
+            setNombreCarpeta(cat.nombre);
+            setModalCarpeta(true);
+          },
         },
-      },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () => {
-          db.runSync("DELETE FROM categorias_documentos WHERE id = ?", [
-            cat.id,
-          ]);
-          db.runSync("DELETE FROM documentos WHERE categoria = ?", [
-            cat.nombre,
-          ]);
-          if (filtro === cat.nombre) setFiltro("Todos");
-          cargarDatos();
+        {
+          text: "Eliminar Carpeta",
+          style: "destructive",
+          onPress: () => {
+            db.runSync("DELETE FROM categorias_documentos WHERE id = ?", [
+              cat.id,
+            ]);
+            db.runSync("DELETE FROM documentos WHERE categoria = ?", [
+              cat.nombre,
+            ]);
+            if (filtro === cat.nombre) setFiltro("Todos");
+            cargarDatos();
+          },
         },
-      },
-      { text: "Cancelar", style: "cancel" },
-    ]);
+        { text: "Cancelar", style: "cancel" },
+      ],
+    );
   };
 
   const subirDocumento = async () => {
@@ -110,29 +114,28 @@ export default function Documentos() {
         const doc = result.assets[0];
         const catFrescas = db.getAllSync("SELECT * FROM categorias_documentos");
 
-        // Primero preguntamos la visibilidad
         Alert.alert(
-          "Visibilidad del Documento",
-          "¿Quién podrá ver este archivo?",
+          "Nivel de Acceso",
+          "¿Quién podrá visualizar este documento?",
           [
             {
               text: "Solo yo (Privado)",
-              onPress: () => elegirCarpetaYGuardar(doc, catFrescas, "Privado"),
+              onPress: () => elegirCarpeta(doc, catFrescas, "Privado"),
             },
             {
-              text: "Todos (Público)",
-              onPress: () => elegirCarpetaYGuardar(doc, catFrescas, "Publico"),
+              text: "Toda la empresa (Público)",
+              onPress: () => elegirCarpeta(doc, catFrescas, "Publico"),
             },
             { text: "Cancelar", style: "cancel" },
           ],
         );
       }
     } catch (error) {
-      Alert.alert("Error", "No se pudo adjuntar.");
+      Alert.alert("Error", "No se pudo adjuntar el archivo.");
     }
   };
 
-  const elegirCarpetaYGuardar = (doc, categorias, visibilidad) => {
+  const elegirCarpeta = (doc, categorias, visibilidad) => {
     const opciones = categorias.map((c) => ({
       text: c.nombre,
       onPress: () => {
@@ -141,12 +144,12 @@ export default function Documentos() {
           "INSERT INTO documentos (titulo, categoria, uri, fecha, visibilidad) VALUES (?, ?, ?, ?, ?)",
           [doc.name, c.nombre, doc.uri, fecha, visibilidad],
         );
-        Alert.alert("Éxito", `Documento guardado como ${visibilidad}`);
+        Alert.alert("Éxito", "Documento almacenado correctamente.");
         cargarDatos();
       },
     }));
     opciones.push({ text: "Cancelar", style: "cancel" });
-    Alert.alert("Ubicación", "Selecciona la carpeta:", opciones);
+    Alert.alert("Directorio", "Selecciona la carpeta de destino:", opciones);
   };
 
   const moverDocumento = (doc) => {
@@ -165,7 +168,7 @@ export default function Documentos() {
     opciones.push({ text: "Cancelar", style: "cancel" });
     Alert.alert(
       "Mover Archivo",
-      `Elige la nueva carpeta para "${doc.titulo}":`,
+      `Selecciona el nuevo destino para "${doc.titulo}":`,
       opciones,
     );
   };
@@ -174,7 +177,10 @@ export default function Documentos() {
     const isAvailable = await Sharing.isAvailableAsync();
     if (isAvailable) await Sharing.shareAsync(uri);
     else
-      Alert.alert("Error", "Tu dispositivo no permite compartir este archivo.");
+      Alert.alert(
+        "Error",
+        "El dispositivo no soporta la visualización de este formato.",
+      );
   };
 
   const docsFiltrados =
@@ -185,16 +191,30 @@ export default function Documentos() {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Archivero</Text>
+        <Text style={styles.headerTitle}>Documentos</Text>
         {isJefe && (
-          <TouchableOpacity style={styles.btnUpload} onPress={subirDocumento}>
-            <Text style={styles.btnUploadText}>+ Subir Doc</Text>
+          <TouchableOpacity
+            style={styles.btnUpload}
+            onPress={subirDocumento}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="cloud-upload-outline"
+              size={18}
+              color={COLORS.surface}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.btnUploadText}>Subir Archivo</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.filterContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
           <TouchableOpacity
             style={[
               styles.filterPill,
@@ -242,7 +262,13 @@ export default function Documentos() {
                 setModalCarpeta(true);
               }}
             >
-              <Text style={styles.filterTextAdd}>+ Carpeta</Text>
+              <Ionicons
+                name="add"
+                size={14}
+                color={COLORS.secondary}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.filterTextAdd}>Carpeta</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -251,56 +277,74 @@ export default function Documentos() {
       <FlatList
         data={docsFiltrados}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.docCard}
-            onPress={() => abrirDocumento(item.uri)}
-            onLongPress={() => moverDocumento(item)}
-          >
-            <Text style={styles.docIcon}>
-              {item.visibilidad === "Privado" ? "🔒" : "📄"}
-            </Text>
-            <View style={styles.docInfo}>
-              <Text style={styles.docTitle}>{item.titulo}</Text>
-              <Text style={styles.docSub}>
-                {item.categoria} • {item.fecha}
-              </Text>
-            </View>
-            <Text style={styles.openHint}>Abrir</Text>
-          </TouchableOpacity>
-        )}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => {
+          const isPrivado = item.visibilidad === "Privado";
+          return (
+            <TouchableOpacity
+              style={styles.docCard}
+              onPress={() => abrirDocumento(item.uri)}
+              onLongPress={() => moverDocumento(item)}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[
+                  styles.iconBox,
+                  { backgroundColor: isPrivado ? "#FEF2F2" : "#F1F5F9" },
+                ]}
+              >
+                <Ionicons
+                  name={isPrivado ? "lock-closed" : "document-text"}
+                  size={24}
+                  color={isPrivado ? COLORS.danger : COLORS.primary}
+                />
+              </View>
+              <View style={styles.docInfo}>
+                <Text style={styles.docTitle} numberOfLines={1}>
+                  {item.titulo}
+                </Text>
+                <Text style={styles.docSub}>
+                  {item.categoria} • {item.fecha}
+                </Text>
+              </View>
+              <Ionicons
+                name="share-outline"
+                size={20}
+                color={COLORS.secondary}
+              />
+            </TouchableOpacity>
+          );
+        }}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>Carpeta vacía.</Text>
+          <Text style={styles.emptyText}>
+            No hay documentos en esta carpeta.
+          </Text>
         }
       />
 
-      {/* Modal de Carpeta (Mismo de antes) */}
+      {/* Modal Modernizado */}
       <Modal visible={modalCarpeta} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {carpetaEditando ? "Editar Carpeta" : "Nueva Carpeta"}
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {carpetaEditando ? "Editar Carpeta" : "Nueva Carpeta"}
+              </Text>
+              <TouchableOpacity onPress={() => setModalCarpeta(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.inputLabel}>Nombre del directorio</Text>
             <TextInput
               style={styles.input}
-              placeholder="Nombre de la carpeta"
+              placeholderTextColor={COLORS.textMuted}
+              placeholder="Ej: Contratos 2026"
               value={nombreCarpeta}
               onChangeText={setNombreCarpeta}
             />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.btn, { backgroundColor: COLORS.danger }]}
-                onPress={() => setModalCarpeta(false)}
-              >
-                <Text style={styles.btnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, { backgroundColor: COLORS.success }]}
-                onPress={guardarCarpeta}
-              >
-                <Text style={styles.btnText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.submitBtn} onPress={guardarCarpeta}>
+              <Text style={styles.btnText}>Guardar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -309,38 +353,69 @@ export default function Documentos() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+  },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
   },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: COLORS.primary },
-  btnUpload: {
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: -0.5,
   },
-  btnUploadText: { color: COLORS.surface, fontWeight: "bold" },
-  filterRow: { marginBottom: 20, flexDirection: "row" },
+  btnUpload: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  btnUploadText: {
+    color: COLORS.surface,
+    fontWeight: "700",
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
+
+  filterContainer: { marginBottom: 20 },
+  filterScroll: { paddingVertical: 5 },
   filterPill: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: COLORS.surface,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   filterPillActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   filterPillAdd: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: "transparent",
     marginRight: 10,
@@ -348,56 +423,91 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: COLORS.secondary,
   },
-  filterText: { color: COLORS.textMuted },
-  filterTextActive: { color: COLORS.surface, fontWeight: "bold" },
-  filterTextAdd: { color: COLORS.secondary, fontWeight: "bold" },
+  filterText: { color: COLORS.textMuted, fontWeight: "600" },
+  filterTextActive: { color: COLORS.surface, fontWeight: "700" },
+  filterTextAdd: { color: COLORS.secondary, fontWeight: "600" },
+
   docCard: {
     backgroundColor: COLORS.surface,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  docIcon: { fontSize: 24, marginRight: 15 },
-  docInfo: { flex: 1 },
-  docTitle: { fontSize: 16, fontWeight: "bold", color: COLORS.text },
-  docSub: { fontSize: 12, color: COLORS.secondary, marginTop: 4 },
-  openHint: { color: COLORS.primary, fontSize: 12, fontWeight: "bold" },
-  emptyText: { textAlign: "center", color: COLORS.textMuted, marginTop: 20 },
+  iconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  docInfo: { flex: 1, paddingRight: 10 },
+  docTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  docSub: { fontSize: 12, color: COLORS.secondary, fontWeight: "500" },
+  emptyText: {
+    textAlign: "center",
+    color: COLORS.textMuted,
+    marginTop: 30,
+    fontStyle: "italic",
+  },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(11, 29, 51, 0.6)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 15,
-    padding: 20,
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 25,
+    paddingBottom: 40,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.primary,
-    marginBottom: 15,
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: COLORS.primary },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   input: {
-    backgroundColor: COLORS.background,
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 15,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    marginBottom: 20,
+    fontSize: 15,
   },
-  modalButtons: { flexDirection: "row", justifyContent: "space-between" },
-  btn: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
+  submitBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginHorizontal: 5,
   },
-  btnText: { color: COLORS.surface, fontWeight: "bold" },
+  btnText: { color: COLORS.surface, fontWeight: "600", fontSize: 16 },
 });

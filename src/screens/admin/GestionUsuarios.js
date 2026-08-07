@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
 
@@ -40,7 +41,6 @@ export default function GestionUsuarios() {
     calcularHorariosHoy(users);
   };
 
-  // Convertidor de horas decimales a texto legible (Ej: 1.5 horas -> "1h 30m")
   const formatHM = (horasDecimales) => {
     if (horasDecimales <= 0) return "0h 0m";
     const h = Math.floor(horasDecimales);
@@ -54,10 +54,8 @@ export default function GestionUsuarios() {
       "SELECT * FROM asistencia ORDER BY id ASC",
     );
 
-    // Traductor de fechas a prueba de balas para React Native / SQLite
     const parseDateSafe = (str) => {
       if (!str) return new Date();
-      // Intentar extraer números (Día, Mes, Año, Hora, Minuto)
       const nums = str.match(/\d+/g);
       if (nums && nums.length >= 3) {
         let y,
@@ -83,17 +81,13 @@ export default function GestionUsuarios() {
             min = nums[4];
           }
         }
-        // El mes en JS empieza en 0 (Enero = 0)
         return new Date(y, m - 1, d, h, min, s);
       }
       return new Date();
     };
 
     const metricas = users.map((u) => {
-      // 1. Filtrar las asistencias de este empleado
       const asisUser = asistencias.filter((a) => a.id_usuario === u.id);
-
-      // 2. Filtrar solo las de HOY comparando el día, mes y año real
       const asisHoy = asisUser.filter((a) => {
         const d = parseDateSafe(a.fecha_hora);
         return (
@@ -110,18 +104,14 @@ export default function GestionUsuarios() {
       let tiempoServicioHoras = 0;
 
       if (entradas.length > 0) {
-        // Obtenemos la hora de la primera entrada
         const primerIngreso = parseDateSafe(entradas[0].fecha_hora);
         horaIngreso = `${String(primerIngreso.getHours()).padStart(2, "0")}:${String(primerIngreso.getMinutes()).padStart(2, "0")}`;
 
-        // Sumamos el tiempo (incluso los minutos y segundos)
         for (let i = 0; i < entradas.length; i++) {
           const tEntrada = parseDateSafe(entradas[i].fecha_hora).getTime();
-          // Si no tiene salida, usamos la hora actual (sigue trabajando)
           const tSalida = salidas[i]
             ? parseDateSafe(salidas[i].fecha_hora).getTime()
             : hoy.getTime();
-
           tiempoServicioHoras += (tSalida - tEntrada) / (1000 * 60 * 60);
         }
       }
@@ -176,8 +166,9 @@ export default function GestionUsuarios() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Gestión de Personal</Text>
+      <Text style={styles.headerTitle}>Equipo y Personal</Text>
 
+      {/* Segmented Control Moderno */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, vista === "plantilla" && styles.tabActive]}
@@ -189,7 +180,7 @@ export default function GestionUsuarios() {
               vista === "plantilla" && styles.tabTextActive,
             ]}
           >
-            Plantilla / Roles
+            Directorio
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -202,7 +193,7 @@ export default function GestionUsuarios() {
               vista === "horarios" && styles.tabTextActive,
             ]}
           >
-            Control Horarios (Hoy)
+            Asistencia (Hoy)
           </Text>
         </TouchableOpacity>
       </View>
@@ -211,23 +202,30 @@ export default function GestionUsuarios() {
         <FlatList
           data={usuarios}
           keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.card}
+              style={styles.userCard}
               onPress={() => abrirEdicion(item)}
+              activeOpacity={0.7}
             >
-              <View>
-                <Text style={styles.userName}>
-                  {item.nombre} (@{item.username})
-                </Text>
-                <Text style={styles.userRole}>
-                  Rol: {item.rol.toUpperCase()}
-                </Text>
+              <View style={styles.cardLeft}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {item.nombre.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.userName}>{item.nombre}</Text>
+                  <Text style={styles.userSub}>
+                    @{item.username} • {item.rol.toUpperCase()}
+                  </Text>
+                </View>
               </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.userSalary}>Salario: ${item.salario}</Text>
+              <View style={styles.cardRight}>
+                <Text style={styles.userSalary}>${item.salario}</Text>
                 <Text style={styles.userHours}>
-                  Turno: {item.horas_cumplir} hs/día
+                  {item.horas_cumplir} hs/día
                 </Text>
               </View>
             </TouchableOpacity>
@@ -242,38 +240,50 @@ export default function GestionUsuarios() {
         <FlatList
           data={metricasHorarios}
           keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={styles.cardMetrics}>
+            <View style={styles.metricCard}>
               <View style={styles.metricHeader}>
-                <Text style={styles.userName}>{item.nombre}</Text>
-                <Text style={styles.metricTarget}>
-                  Meta: {item.horas_cumplir}hs
-                </Text>
-              </View>
-
-              <View style={styles.metricRow}>
-                <View style={styles.metricBox}>
-                  <Text style={styles.metricLabel}>Ingreso</Text>
-                  <Text style={styles.metricValue}>{item.horaIngreso}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View
+                    style={[
+                      styles.avatarpeq,
+                      { backgroundColor: "rgba(11, 29, 51, 0.1)" },
+                    ]}
+                  >
+                    <Text style={styles.avatarTextPeq}>
+                      {item.nombre.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.metricName}>{item.nombre}</Text>
                 </View>
-                <View style={styles.metricBox}>
-                  <Text style={styles.metricLabel}>En Servicio</Text>
-                  <Text style={[styles.metricValue, { color: COLORS.primary }]}>
-                    {item.tiempoServicio}
+                <View style={styles.badgeTarget}>
+                  <Text style={styles.badgeTargetText}>
+                    Meta: {item.horas_cumplir}hs
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.metricRow}>
+              <View style={styles.metricGrid}>
                 <View style={styles.metricBox}>
-                  <Text style={styles.metricLabel}>Extras (+)</Text>
-                  <Text style={[styles.metricValue, { color: COLORS.success }]}>
+                  <Text style={styles.metricLabel}>INGRESO</Text>
+                  <Text style={styles.metricValueBase}>{item.horaIngreso}</Text>
+                </View>
+                <View style={styles.metricBox}>
+                  <Text style={styles.metricLabel}>TIEMPO ACTIVO</Text>
+                  <Text style={styles.metricValuePrimary}>
+                    {item.tiempoServicio}
+                  </Text>
+                </View>
+                <View style={styles.metricBox}>
+                  <Text style={styles.metricLabel}>EXTRAS</Text>
+                  <Text style={styles.metricValueSuccess}>
                     {item.horasExtras}
                   </Text>
                 </View>
                 <View style={styles.metricBox}>
-                  <Text style={styles.metricLabel}>Adeudadas (-)</Text>
-                  <Text style={[styles.metricValue, { color: COLORS.danger }]}>
+                  <Text style={styles.metricLabel}>DEUDA</Text>
+                  <Text style={styles.metricValueDanger}>
                     {item.horasAdeudadas}
                   </Text>
                 </View>
@@ -286,13 +296,19 @@ export default function GestionUsuarios() {
         />
       )}
 
-      <Modal visible={modalVisible} transparent animationType="slide">
+      {/* Modal de Edición Modernizado */}
+      <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Editar {usuarioEdit?.nombre}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Empleado</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.label}>Rol en la empresa:</Text>
-            <View style={styles.pickerContainer}>
+            <Text style={styles.inputLabel}>Rol en la empresa</Text>
+            <View style={styles.pickerWrapper}>
               <Picker selectedValue={rol} onValueChange={setRol}>
                 <Picker.Item label="Empleado (Caja/Ventas)" value="empleado" />
                 <Picker.Item label="Técnico (Mantenimiento)" value="tecnico" />
@@ -300,38 +316,27 @@ export default function GestionUsuarios() {
               </Picker>
             </View>
 
-            <Text style={styles.label}>Salario Base ($):</Text>
+            <Text style={styles.inputLabel}>Salario Base ($)</Text>
             <TextInput
-              style={styles.inputDark}
-              placeholderTextColor="#9CA3AF"
+              style={styles.input}
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="numeric"
               value={salario}
               onChangeText={setSalario}
             />
 
-            <Text style={styles.label}>Horas a cumplir por día:</Text>
+            <Text style={styles.inputLabel}>Horas a cumplir por día</Text>
             <TextInput
-              style={styles.inputDark}
-              placeholderTextColor="#9CA3AF"
+              style={styles.input}
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="numeric"
               value={horasCumplir}
               onChangeText={setHorasCumplir}
             />
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnCancel]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.btnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSave]}
-                onPress={guardarCambios}
-              >
-                <Text style={styles.btnText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.submitBtn} onPress={guardarCambios}>
+              <Text style={styles.btnText}>Guardar Cambios</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -340,125 +345,222 @@ export default function GestionUsuarios() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: COLORS.primary,
-    marginBottom: 15,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 20,
+    paddingTop: 30,
   },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: COLORS.primary,
+    marginBottom: 20,
+    letterSpacing: -0.5,
+  },
+
+  // Segmented Control
   tabContainer: {
     flexDirection: "row",
-    backgroundColor: "#E5E7EB",
-    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 12,
     padding: 4,
     marginBottom: 20,
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 6 },
-  tabActive: { backgroundColor: COLORS.surface, elevation: 1 },
-  tabText: { color: COLORS.textMuted, fontWeight: "bold", fontSize: 13 },
-  tabTextActive: { color: COLORS.primary },
-  card: {
+  tab: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: 10 },
+  tabActive: {
     backgroundColor: COLORS.surface,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: { color: COLORS.textMuted, fontWeight: "600", fontSize: 14 },
+  tabTextActive: { color: COLORS.primary, fontWeight: "700" },
+
+  // User Cards
+  userCard: {
+    backgroundColor: COLORS.surface,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  userName: { fontSize: 16, fontWeight: "bold", color: COLORS.text },
-  userRole: { fontSize: 13, color: COLORS.secondary, marginTop: 4 },
-  userSalary: { fontSize: 14, fontWeight: "bold", color: COLORS.success },
-  userHours: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  cardMetrics: {
+  cardLeft: { flexDirection: "row", alignItems: "center" },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(11, 29, 51, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  avatarText: { fontSize: 18, fontWeight: "bold", color: COLORS.primary },
+  userName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  userSub: {
+    fontSize: 12,
+    color: COLORS.secondary,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  cardRight: { alignItems: "flex-end" },
+  userSalary: { fontSize: 15, fontWeight: "700", color: COLORS.success },
+  userHours: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+
+  // Metric Cards
+  metricCard: {
     backgroundColor: COLORS.surface,
-    padding: 15,
-    borderRadius: 10,
+    padding: 18,
+    borderRadius: 16,
     marginBottom: 15,
-    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   metricHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    paddingBottom: 10,
-    marginBottom: 10,
-  },
-  metricTarget: { fontSize: 13, color: COLORS.secondary, fontWeight: "bold" },
-  metricRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  metricBox: {
-    flex: 1,
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    padding: 10,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 12,
+    marginBottom: 15,
   },
-  metricLabel: {
+  avatarpeq: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  avatarTextPeq: { fontSize: 14, fontWeight: "bold", color: COLORS.primary },
+  metricName: { fontSize: 16, fontWeight: "700", color: COLORS.text },
+  badgeTarget: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeTargetText: {
     fontSize: 11,
     color: COLORS.textMuted,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  metricGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  metricBox: {
+    width: "48%",
+    backgroundColor: COLORS.background,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  metricLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    fontWeight: "700",
     textTransform: "uppercase",
     marginBottom: 4,
   },
-  metricValue: { fontSize: 18, fontWeight: "bold", color: COLORS.text },
-  emptyText: { textAlign: "center", color: COLORS.textMuted, marginTop: 20 },
+  metricValueBase: { fontSize: 16, fontWeight: "800", color: COLORS.text },
+  metricValuePrimary: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  metricValueSuccess: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.success,
+  },
+  metricValueDanger: { fontSize: 16, fontWeight: "800", color: COLORS.danger },
+
+  emptyText: {
+    textAlign: "center",
+    color: COLORS.textMuted,
+    marginTop: 20,
+    fontStyle: "italic",
+  },
+
+  // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(11, 29, 51, 0.6)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 15,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.primary,
-    marginBottom: 15,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: COLORS.textMuted,
-    marginBottom: 5,
-  },
-  pickerContainer: {
     backgroundColor: COLORS.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 25,
+    paddingBottom: 40,
   },
-  inputDark: {
-    backgroundColor: "#1F2937",
-    color: "#FFFFFF",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  modalButtons: {
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: COLORS.primary },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    marginBottom: 16,
+    fontSize: 15,
+  },
+  pickerWrapper: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  submitBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
     marginTop: 10,
   },
-  btn: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    marginHorizontal: 5,
-  },
-  btnCancel: { backgroundColor: COLORS.danger },
-  btnSave: { backgroundColor: COLORS.success },
-  btnText: { color: COLORS.surface, fontWeight: "bold" },
+  btnText: { color: COLORS.surface, fontWeight: "600", fontSize: 16 },
 });

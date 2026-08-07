@@ -12,17 +12,15 @@ import {
 } from "react-native";
 import { BarChart, ProgressChart } from "react-native-chart-kit";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
 
 const screenWidth = Dimensions.get("window").width;
 
 export default function Finanzas() {
-  // Estados del sistema base (Balance e Historial)
   const [balance, setBalance] = useState({ ingresos: 0, egresos: 0, neto: 0 });
   const [historial, setHistorial] = useState([]);
-
-  // Estados del nuevo sistema (Presupuesto y Gráficos)
   const [presupuesto, setPresupuesto] = useState(0);
   const [gastado, setGastado] = useState(0);
   const [nuevoPresupuesto, setNuevoPresupuesto] = useState("");
@@ -48,19 +46,15 @@ export default function Finanzas() {
 
   const cargarDatosFinancieros = () => {
     try {
-      // 1. Cargar Presupuesto del mes actual
       const resPresupuesto = db.getAllSync(
         "SELECT monto FROM presupuestos WHERE mes = ?",
         [mesActualStr],
       );
       setPresupuesto(resPresupuesto.length > 0 ? resPresupuesto[0].monto : 0);
 
-      // 2. Cargar todas las transacciones
       const transacciones = db.getAllSync(
         "SELECT * FROM transacciones ORDER BY id DESC",
       );
-
-      // Guardamos los últimos 5 movimientos para el historial rápido
       setHistorial(transacciones.slice(0, 5));
 
       let ingTotales = 0;
@@ -69,21 +63,17 @@ export default function Finanzas() {
       let ingresosPorMes = {};
 
       transacciones.forEach((t) => {
-        // Sumatorias para el Balance General (Sistema original)
         if (t.tipo === "Ingreso") ingTotales += t.monto;
         if (t.tipo === "Egreso") egrTotales += t.monto;
 
-        // Procesamiento de fechas para presupuestos y gráficos
         const partesFecha = t.fecha.split("/");
         if (partesFecha.length === 3) {
-          const mesAnio = `${partesFecha[1].padStart(2, "0")}/${partesFecha[2]}`; // MM/YYYY
+          const mesAnio = `${partesFecha[1].padStart(2, "0")}/${partesFecha[2]}`;
 
-          // Calcular Egresos solo del mes actual
           if (t.tipo === "Egreso" && mesAnio === mesActualStr) {
             totalGastadoMes += t.monto;
           }
 
-          // Agrupar Ingresos (Ventas) por mes
           if (t.tipo === "Ingreso") {
             if (!ingresosPorMes[mesAnio]) ingresosPorMes[mesAnio] = 0;
             ingresosPorMes[mesAnio] += t.monto;
@@ -91,7 +81,6 @@ export default function Finanzas() {
         }
       });
 
-      // Actualizamos los estados
       setBalance({
         ingresos: ingTotales,
         egresos: egrTotales,
@@ -99,11 +88,10 @@ export default function Finanzas() {
       });
       setGastado(totalGastadoMes);
 
-      // Preparar datos para el gráfico de barras (Últimos meses)
       const meses = Object.keys(ingresosPorMes).sort();
       if (meses.length > 0) {
         setDatosVentas({
-          labels: meses.map((m) => m.substring(0, 5)), // Muestra solo MM/YY
+          labels: meses.map((m) => m.substring(0, 5)),
           datasets: [{ data: meses.map((m) => ingresosPorMes[m]) }],
         });
       }
@@ -117,7 +105,6 @@ export default function Finanzas() {
     if (isNaN(montoNum) || montoNum <= 0) {
       return Alert.alert("Error", "Ingresa un monto válido.");
     }
-
     try {
       db.runSync(
         "INSERT OR REPLACE INTO presupuestos (id, mes, monto) VALUES ((SELECT id FROM presupuestos WHERE mes = ?), ?, ?)",
@@ -136,62 +123,104 @@ export default function Finanzas() {
   const colorProgreso = porcentajeGastado > 1 ? COLORS.danger : COLORS.primary;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.headerTitle}>Panel Financiero</Text>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.headerTitle}>Métricas Financieras</Text>
 
-      {/* SECCIÓN 1: BALANCE GENERAL (Tu sistema original) */}
-      <View style={styles.cardBalance}>
-        <Text style={styles.cardTitleWhite}>Balance Total Histórico</Text>
-        <Text style={styles.netBalance}>${balance.neto.toFixed(2)}</Text>
+      {/* TARJETA PRINCIPAL: BALANCE (Estilo VIP) */}
+      <View style={styles.mainBalanceCard}>
+        <Text style={styles.balanceSubtitle}>BALANCE NETO HISTÓRICO</Text>
+        <Text style={styles.balanceNeto}>
+          ${balance.neto.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}
+        </Text>
 
-        <View style={styles.rowBalance}>
-          <View style={styles.colBalance}>
-            <Text style={styles.labelBalance}>Ingresos</Text>
-            <Text style={styles.valIngreso}>
-              +${balance.ingresos.toFixed(2)}
-            </Text>
+        <View style={styles.balanceDivider} />
+
+        <View style={styles.balanceMetricsRow}>
+          <View style={styles.metricItem}>
+            <View
+              style={[
+                styles.iconBadge,
+                { backgroundColor: "rgba(16, 185, 129, 0.2)" },
+              ]}
+            >
+              <Ionicons
+                name="arrow-down-outline"
+                size={16}
+                color={COLORS.success}
+              />
+            </View>
+            <View>
+              <Text style={styles.metricLabel}>Ingresos Totales</Text>
+              <Text style={styles.metricValueIngreso}>
+                +${balance.ingresos.toFixed(2)}
+              </Text>
+            </View>
           </View>
-          <View style={styles.colBalance}>
-            <Text style={styles.labelBalance}>Egresos</Text>
-            <Text style={styles.valEgreso}>-${balance.egresos.toFixed(2)}</Text>
+
+          <View style={styles.metricItem}>
+            <View
+              style={[
+                styles.iconBadge,
+                { backgroundColor: "rgba(239, 68, 68, 0.2)" },
+              ]}
+            >
+              <Ionicons
+                name="arrow-up-outline"
+                size={16}
+                color={COLORS.danger}
+              />
+            </View>
+            <View>
+              <Text style={styles.metricLabel}>Egresos Totales</Text>
+              <Text style={styles.metricValueEgreso}>
+                -${balance.egresos.toFixed(2)}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
 
-      {/* SECCIÓN 2: PRESUPUESTO MENSUAL (Lo nuevo) */}
+      {/* CONTROL DE PRESUPUESTO */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
-          Presupuesto de Gastos ({mesActualStr})
+          Control de Presupuesto ({mesActualStr})
         </Text>
 
         <View style={styles.budgetDisplay}>
           <View style={styles.budgetInfo}>
             <Text style={styles.budgetText}>
-              Límite: ${presupuesto.toFixed(2)}
+              Límite fijado:{" "}
+              <Text style={{ fontWeight: "400" }}>
+                ${presupuesto.toFixed(2)}
+              </Text>
             </Text>
             <Text style={[styles.budgetText, { color: colorProgreso }]}>
-              Gastado: ${gastado.toFixed(2)}
+              Consumido:{" "}
+              <Text style={{ fontWeight: "bold" }}>${gastado.toFixed(2)}</Text>
             </Text>
             <Text style={styles.budgetSub}>
               {presupuesto > 0
-                ? `Disponible: $${Math.max(presupuesto - gastado, 0).toFixed(2)}`
-                : "Fija un límite mensual abajo"}
+                ? `Quedan disponibles: $${Math.max(presupuesto - gastado, 0).toFixed(2)}`
+                : "Fija un límite mensual debajo"}
             </Text>
           </View>
 
           <ProgressChart
             data={{ data: [progresoNormalizado] }}
-            width={100}
-            height={100}
-            strokeWidth={12}
-            radius={32}
+            width={90}
+            height={90}
+            strokeWidth={10}
+            radius={36}
             chartConfig={{
               backgroundGradientFrom: COLORS.surface,
               backgroundGradientTo: COLORS.surface,
               color: (opacity = 1) =>
                 porcentajeGastado > 1
                   ? `rgba(239, 68, 68, ${opacity})`
-                  : `rgba(37, 99, 235, ${opacity})`,
+                  : `rgba(11, 29, 51, ${opacity})`,
             }}
             hideLegend={true}
           />
@@ -199,25 +228,29 @@ export default function Finanzas() {
 
         <View style={styles.inputRow}>
           <TextInput
-            style={styles.inputDark}
-            placeholder="Asignar presupuesto..."
-            placeholderTextColor="#9CA3AF"
+            style={styles.input}
+            placeholder="Nuevo presupuesto..."
+            placeholderTextColor={COLORS.textMuted}
             keyboardType="numeric"
             value={nuevoPresupuesto}
             onChangeText={setNuevoPresupuesto}
           />
-          <TouchableOpacity style={styles.btnSave} onPress={guardarPresupuesto}>
-            <Text style={styles.btnSaveText}>Fijar</Text>
+          <TouchableOpacity
+            style={styles.btnSave}
+            onPress={guardarPresupuesto}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnSaveText}>Actualizar</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* SECCIÓN 3: GRÁFICO DE VENTAS (Lo nuevo) */}
+      {/* GRÁFICO DE VENTAS */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Crecimiento de Ventas</Text>
+        <Text style={styles.cardTitle}>Rendimiento de Ingresos (Mensual)</Text>
         <BarChart
           data={datosVentas}
-          width={screenWidth - 70}
+          width={screenWidth - 80}
           height={220}
           yAxisLabel="$"
           chartConfig={{
@@ -225,154 +258,285 @@ export default function Finanzas() {
             backgroundGradientFrom: COLORS.surface,
             backgroundGradientTo: COLORS.surface,
             decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+            color: (opacity = 1) => `rgba(11, 29, 51, ${opacity})`, // Usando tu nuevo Azul Noche
             labelColor: (opacity = 1) => COLORS.textMuted,
             style: { borderRadius: 16 },
-            barPercentage: 0.6,
+            barPercentage: 0.7,
+            propsForBackgroundLines: {
+              strokeWidth: 1,
+              stroke: COLORS.border,
+              strokeDasharray: "0",
+            },
           }}
           style={styles.chartStyle}
         />
       </View>
 
-      {/* SECCIÓN 4: HISTORIAL DE TRANSACCIONES (Tu sistema original) */}
-      <View style={[styles.card, { marginBottom: 40 }]}>
-        <Text style={styles.cardTitle}>Últimos Movimientos</Text>
+      {/* ÚLTIMOS MOVIMIENTOS */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Últimos Movimientos</Text>
+          <Ionicons name="list-outline" size={20} color={COLORS.secondary} />
+        </View>
+
         {historial.length === 0 ? (
           <Text style={styles.emptyText}>
-            No hay transacciones registradas.
+            Aún no hay transacciones en el sistema.
           </Text>
         ) : (
-          historial.map((item) => (
-            <View key={item.id} style={styles.historyRow}>
-              <View>
-                <Text style={styles.historyClient}>
-                  {item.cliente || item.tipo}
-                </Text>
-                <Text style={styles.historyDate}>
-                  {item.fecha} • {item.metodo_pago}
-                </Text>
-              </View>
-              <Text
+          historial.map((item, index) => {
+            const isIngreso = item.tipo === "Ingreso";
+            return (
+              <View
+                key={item.id}
                 style={[
-                  styles.historyAmount,
-                  item.tipo === "Ingreso"
-                    ? styles.valIngreso
-                    : styles.valEgreso,
+                  styles.historyRow,
+                  index === historial.length - 1 && { borderBottomWidth: 0 },
                 ]}
               >
-                {item.tipo === "Ingreso" ? "+" : "-"}${item.monto.toFixed(2)}
-              </Text>
-            </View>
-          ))
+                <View style={styles.historyLeft}>
+                  <View
+                    style={[
+                      styles.historyIconBox,
+                      { backgroundColor: isIngreso ? "#ECFDF5" : "#FEF2F2" },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isIngreso ? "trending-up" : "trending-down"}
+                      size={18}
+                      color={isIngreso ? COLORS.success : COLORS.danger}
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.historyClient} numberOfLines={1}>
+                      {item.cliente || item.tipo}
+                    </Text>
+                    <Text style={styles.historyDate}>
+                      {item.fecha} • {item.metodo_pago}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.historyAmount,
+                    { color: isIngreso ? COLORS.text : COLORS.danger },
+                  ]}
+                >
+                  {isIngreso ? "+" : "-"}${item.monto.toFixed(2)}
+                </Text>
+              </View>
+            );
+          })
         )}
       </View>
+
+      {/* Espaciador para la barra de navegación */}
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
+  container: {
+    flexGrow: 1,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+  },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "800",
     color: COLORS.primary,
     marginBottom: 20,
+    letterSpacing: -0.5,
   },
 
-  cardBalance: {
-    backgroundColor: "#111827",
-    padding: 20,
-    borderRadius: 15,
+  /* Tarjeta de Balance Estilo VIP */
+  mainBalanceCard: {
+    backgroundColor: COLORS.primary, // Fondo Azul Noche
+    padding: 24,
+    borderRadius: 20,
+    marginBottom: 25,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  balanceSubtitle: {
+    fontSize: 12,
+    color: COLORS.secondary,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  balanceNeto: {
+    fontSize: 40,
+    fontWeight: "800",
+    color: COLORS.surface,
     marginBottom: 20,
-    elevation: 3,
+    letterSpacing: -1,
   },
-  cardTitleWhite: {
-    fontSize: 16,
-    color: "#9CA3AF",
-    fontWeight: "bold",
-    marginBottom: 5,
+  balanceDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginBottom: 20,
   },
-  netBalance: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 15,
-  },
-  rowBalance: {
+  balanceMetricsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#374151",
-    paddingTop: 15,
   },
-  colBalance: { flex: 1 },
-  labelBalance: { fontSize: 12, color: "#9CA3AF", marginBottom: 5 },
-  valIngreso: { fontSize: 16, fontWeight: "bold", color: COLORS.success },
-  valEgreso: { fontSize: 16, fontWeight: "bold", color: COLORS.danger },
+  metricItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  metricValueIngreso: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.success,
+    marginTop: 2,
+  },
+  metricValueEgreso: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FCA5A5", // Rojo un poco más claro para fondos oscuros
+    marginTop: 2,
+  },
 
+  /* Tarjetas Generales */
   card: {
     backgroundColor: COLORS.surface,
     padding: 20,
-    borderRadius: 15,
+    borderRadius: 16,
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: COLORS.text,
     marginBottom: 15,
   },
 
+  /* Presupuesto */
   budgetDisplay: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 20,
   },
-  budgetInfo: { flex: 1, paddingRight: 10 },
+  budgetInfo: { flex: 1, paddingRight: 15 },
   budgetText: {
-    fontSize: 15,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "600",
     color: COLORS.text,
-    marginBottom: 5,
+    marginBottom: 6,
   },
   budgetSub: {
     fontSize: 12,
     color: COLORS.secondary,
-    marginTop: 5,
+    marginTop: 8,
     fontStyle: "italic",
   },
 
+  /* Inputs Modernos */
   inputRow: { flexDirection: "row", alignItems: "center" },
-  inputDark: {
+  input: {
     flex: 1,
-    backgroundColor: "#1F2937",
-    color: "#FFFFFF",
-    padding: 12,
-    borderRadius: 8,
-    marginRight: 10,
+    backgroundColor: COLORS.background,
+    color: COLORS.text,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    fontSize: 15,
   },
-  btnSave: { backgroundColor: COLORS.success, padding: 14, borderRadius: 8 },
-  btnSaveText: { color: COLORS.surface, fontWeight: "bold" },
+  btnSave: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  btnSaveText: {
+    color: COLORS.surface,
+    fontWeight: "600",
+  },
 
-  chartStyle: { marginVertical: 8, borderRadius: 16, alignSelf: "center" },
+  chartStyle: {
+    marginVertical: 8,
+    borderRadius: 16,
+    alignSelf: "center",
+  },
 
+  /* Historial de Movimientos */
   historyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: COLORS.border,
   },
-  historyClient: { fontSize: 14, fontWeight: "bold", color: COLORS.text },
-  historyDate: { fontSize: 11, color: COLORS.secondary, marginTop: 2 },
-  historyAmount: { fontSize: 14, fontWeight: "bold" },
+  historyLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    paddingRight: 10,
+  },
+  historyIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  historyClient: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
+  historyDate: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  historyAmount: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
   emptyText: {
     textAlign: "center",
     color: COLORS.textMuted,
     fontStyle: "italic",
-    marginTop: 10,
+    paddingVertical: 10,
   },
 });

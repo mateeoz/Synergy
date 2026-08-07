@@ -15,6 +15,7 @@ import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/useAuthStore";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
@@ -65,7 +66,7 @@ LocaleConfig.defaultLocale = "es";
 export default function CalendarioGlobal() {
   const user = useAuthStore((state) => state.user);
   const isJefe = user?.rol === "jefe";
-  const insets = useSafeAreaInsets(); // <-- Importante para no chocar con barras del sistema
+  const insets = useSafeAreaInsets();
 
   const [eventos, setEventos] = useState([]);
   const [markedDates, setMarkedDates] = useState({});
@@ -96,7 +97,6 @@ export default function CalendarioGlobal() {
   const cargarEventos = () => {
     try {
       const resultado = db.getAllSync("SELECT * FROM eventos");
-
       const eventosPermitidos = resultado.filter((ev) => {
         if (ev.visibilidad === "global") return true;
         if (ev.visibilidad === "privado" && isJefe) return true;
@@ -136,9 +136,9 @@ export default function CalendarioGlobal() {
 
   const agregarEvento = () => {
     if (!titulo || !fechaSeleccionada)
-      return Alert.alert("Error", "Faltan datos.");
+      return Alert.alert("Error", "El título es obligatorio.");
     if (visibilidad === "especifico" && usuariosSeleccionados.length === 0)
-      return Alert.alert("Error", "Selecciona al menos un usuario.");
+      return Alert.alert("Error", "Selecciona al menos un invitado.");
 
     try {
       const idsPermitidos = usuariosSeleccionados.join(",");
@@ -152,7 +152,7 @@ export default function CalendarioGlobal() {
       setVisibilidad("global");
       cargarEventos();
     } catch (error) {
-      Alert.alert("Error", "No se pudo agendar.");
+      Alert.alert("Error", "No se pudo registrar el evento.");
     }
   };
 
@@ -171,118 +171,178 @@ export default function CalendarioGlobal() {
   const eventosDelDia = eventos.filter((ev) => ev.fecha === fechaSeleccionada);
 
   return (
-    // Agregamos padding inferior dinámico para que la lista no quede tapada por el Dock
-    <View style={[styles.container, { paddingBottom: 80 + insets.bottom }]}>
-      <Text style={styles.headerTitle}>Calendario</Text>
-      <Calendar
-        markingType={"multi-dot"}
-        markedDates={getMarkedDates()}
-        onDayPress={(day) => setFechaSeleccionada(day.dateString)}
-        theme={{
-          todayTextColor: COLORS.primary,
-          arrowColor: COLORS.primary,
-        }}
-      />
+    <View style={[styles.container, { paddingBottom: 85 + insets.bottom }]}>
+      <Text style={styles.headerTitle}>Calendario Global</Text>
+
+      <View style={styles.calendarContainer}>
+        <Calendar
+          markingType={"multi-dot"}
+          markedDates={getMarkedDates()}
+          onDayPress={(day) => setFechaSeleccionada(day.dateString)}
+          theme={{
+            backgroundColor: COLORS.surface,
+            calendarBackground: COLORS.surface,
+            todayTextColor: COLORS.primary,
+            arrowColor: COLORS.primary,
+            monthTextColor: COLORS.primary,
+            textMonthFontWeight: "bold",
+            textDayHeaderFontWeight: "600",
+          }}
+        />
+      </View>
 
       <View style={styles.eventListContainer}>
         <Text style={styles.subtitle}>
           {fechaSeleccionada
             ? `Eventos del ${fechaSeleccionada}`
-            : "Selecciona un día"}
+            : "Selecciona una fecha en el calendario"}
         </Text>
         <FlatList
           data={eventosDelDia}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.eventCard}>
-              <Text style={styles.eventTitle}>{item.titulo}</Text>
-              <Text style={styles.eventType}>
-                {item.tipo.toUpperCase()} • {item.visibilidad.toUpperCase()}
-              </Text>
-            </View>
-          )}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            const isDanger = item.tipo === "impuesto";
+            const isSuccess = item.tipo === "sueldo";
+            const accentColor = isDanger
+              ? COLORS.danger
+              : isSuccess
+                ? COLORS.success
+                : COLORS.primary;
+
+            return (
+              <View
+                style={[styles.eventCard, { borderLeftColor: accentColor }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.eventTitle}>{item.titulo}</Text>
+                  <Text style={styles.eventType}>
+                    {item.tipo.toUpperCase()} • {item.visibilidad.toUpperCase()}
+                  </Text>
+                </View>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={accentColor}
+                />
+              </View>
+            );
+          }}
         />
       </View>
 
       {isJefe && (
         <TouchableOpacity
-          style={[styles.fab, { bottom: 100 + insets.bottom }]} // <-- SUBIMOS EL BOTÓN AQUÍ
+          style={[styles.fab, { bottom: 100 + insets.bottom }]}
           onPress={() => {
-            if (!fechaSeleccionada) Alert.alert("Aviso", "Toca un día.");
+            if (!fechaSeleccionada)
+              Alert.alert("Aviso", "Primero toca un día en el calendario.");
             else setModalVisible(true);
           }}
+          activeOpacity={0.8}
         >
-          <Text style={styles.fabText}>+ Nuevo</Text>
+          <Ionicons name="add" size={24} color={COLORS.surface} />
         </TouchableOpacity>
       )}
 
-      {/* Modal de Creación */}
-      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+      {/* Modal Modernizado */}
+      <Modal visible={modalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Agendar Evento</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Agendar Evento</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Título del evento</Text>
             <TextInput
               style={styles.input}
-              placeholder="Título"
+              placeholderTextColor={COLORS.textMuted}
+              placeholder="Ej: Presentación Anual"
               value={titulo}
               onChangeText={setTitulo}
             />
 
-            <View style={styles.pickerContainer}>
+            <Text style={styles.inputLabel}>Clasificación</Text>
+            <View style={styles.pickerWrapper}>
               <Picker selectedValue={tipo} onValueChange={setTipo}>
-                <Picker.Item label="Reunión" value="reunion" />
-                <Picker.Item label="Vencimiento" value="impuesto" />
+                <Picker.Item label="Reunión Corporativa" value="reunion" />
+                <Picker.Item label="Vencimiento / Impuesto" value="impuesto" />
+                <Picker.Item label="Pago de Sueldos" value="sueldo" />
               </Picker>
             </View>
 
-            <View style={styles.pickerContainer}>
+            <Text style={styles.inputLabel}>Privacidad</Text>
+            <View style={styles.pickerWrapper}>
               <Picker
                 selectedValue={visibilidad}
                 onValueChange={setVisibilidad}
               >
+                <Picker.Item label="Público (Toda la empresa)" value="global" />
+                <Picker.Item label="Privado (Solo Dirección)" value="privado" />
                 <Picker.Item
-                  label="Visible para todos (Global)"
-                  value="global"
+                  label="Restringido (Seleccionar asistentes)"
+                  value="especifico"
                 />
-                <Picker.Item label="Solo para mí (Privado)" value="privado" />
-                <Picker.Item label="Empleados específicos" value="especifico" />
               </Picker>
             </View>
 
             {visibilidad === "especifico" && (
               <View style={styles.userList}>
-                <Text style={styles.label}>Seleccionar invitados:</Text>
-                <ScrollView style={{ maxHeight: 120 }}>
-                  {listaUsuarios.map((u) => (
-                    <TouchableOpacity
-                      key={u.id}
-                      style={styles.userRow}
-                      onPress={() => toggleUsuario(u.id)}
-                    >
-                      <Text style={styles.userText}>
-                        {usuariosSeleccionados.includes(u.id) ? "☑" : "☐"}{" "}
-                        {u.nombre} ({u.rol})
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={[styles.inputLabel, { marginBottom: 10 }]}>
+                  Seleccionar invitados:
+                </Text>
+                <ScrollView
+                  style={{ maxHeight: 130 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {listaUsuarios.map((u) => {
+                    const isSelected = usuariosSeleccionados.includes(u.id);
+                    return (
+                      <TouchableOpacity
+                        key={u.id}
+                        style={styles.userRow}
+                        onPress={() => toggleUsuario(u.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name={isSelected ? "checkbox" : "square-outline"}
+                          size={22}
+                          color={isSelected ? COLORS.primary : COLORS.textMuted}
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text
+                          style={[
+                            styles.userText,
+                            isSelected && {
+                              fontWeight: "700",
+                              color: COLORS.primary,
+                            },
+                          ]}
+                        >
+                          {u.nombre}{" "}
+                          <Text
+                            style={{
+                              fontWeight: "400",
+                              fontSize: 12,
+                              color: COLORS.secondary,
+                            }}
+                          >
+                            ({u.rol})
+                          </Text>
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </View>
             )}
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnCancel]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.btnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSave]}
-                onPress={agregarEvento}
-              >
-                <Text style={styles.btnText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.submitBtn} onPress={agregarEvento}>
+              <Text style={styles.btnText}>Guardar Evento</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -293,89 +353,144 @@ export default function CalendarioGlobal() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "800",
     color: COLORS.primary,
-    padding: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+    paddingBottom: 15,
+    letterSpacing: -0.5,
   },
-  eventListContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
+
+  calendarContainer: {
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  eventListContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   subtitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.secondary,
     marginBottom: 15,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   eventCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.surface,
-    padding: 15,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 10,
-    borderLeftWidth: 5,
-    borderLeftColor: COLORS.primary,
+    borderLeftWidth: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 1,
   },
-  eventTitle: { fontSize: 16, fontWeight: "bold", color: COLORS.text },
-  eventType: { fontSize: 12, color: COLORS.secondary, marginTop: 4 },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  eventType: { fontSize: 11, color: COLORS.secondary, fontWeight: "600" },
+
   fab: {
     position: "absolute",
     right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.primary,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    elevation: 5,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
-  fabText: { color: COLORS.surface, fontWeight: "bold" },
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(11, 29, 51, 0.6)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 15,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.primary,
-    marginBottom: 15,
-  },
-  input: {
     backgroundColor: COLORS.background,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 15,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 25,
+    paddingBottom: 40,
   },
-  pickerContainer: {
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 10,
-  },
-  userList: { marginBottom: 15 },
-  label: { fontWeight: "bold", marginBottom: 5 },
-  userRow: { paddingVertical: 5 },
-  userText: { fontSize: 16, color: COLORS.text },
-  modalButtons: {
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: COLORS.primary },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    marginBottom: 16,
+    fontSize: 15,
+  },
+  pickerWrapper: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  userList: {
+    marginBottom: 15,
+    backgroundColor: COLORS.surface,
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  userText: { fontSize: 15, color: COLORS.text },
+  submitBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
     marginTop: 10,
   },
-  btn: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    marginHorizontal: 5,
-  },
-  btnCancel: { backgroundColor: COLORS.danger },
-  btnSave: { backgroundColor: COLORS.success },
-  btnText: { color: COLORS.surface, fontWeight: "bold" },
+  btnText: { color: COLORS.surface, fontWeight: "600", fontSize: 16 },
 });
