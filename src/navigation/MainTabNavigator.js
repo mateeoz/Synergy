@@ -2,6 +2,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { View, Text, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../store/useAuthStore";
 import { COLORS } from "../theme/colors";
 
@@ -19,6 +20,7 @@ import AuditoriaLimpieza from "../screens/admin/AuditorialLimpieza";
 import Premium from "../screens/shared/Premium";
 import AuditoriaTickets from "../screens/admin/AuditoriaTickets";
 import Inventario from "../screens/admin/Inventario";
+import Reservas from "../screens/shared/Reservas"; // <-- Asegurate de que la ruta exista
 
 // Importamos el componente giratorio REPARADO
 import RadialTabBar from "../components/RadialTabBar";
@@ -29,14 +31,21 @@ export default function MainTabNavigator() {
   const user = useAuthStore((state) => state.user);
   const rol = user?.rol || "empleado";
 
+  // Obtenemos los márgenes seguros del teléfono (ej: la barrita de iPhone abajo)
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
-      tabBar={(props) => <RadialTabBar {...props} />} // <-- INYECTAMOS EL MENÚ RADIAL AQUÍ
+      tabBar={(props) => <RadialTabBar {...props} />}
+      // LA MAGIA GLOBAL ESTÁ ACÁ: Le damos padding inferior a TODAS las pantallas
+      sceneContainerStyle={{
+        paddingBottom: 60 + insets.bottom,
+        backgroundColor: COLORS.background,
+      }}
       screenOptions={({ navigation }) => ({
         headerStyle: { backgroundColor: COLORS.primary },
         headerTintColor: COLORS.surface,
         headerTitleAlign: "center",
-        // BOTÓN PREMIUM EN LA CABECERA
         headerRight: () => (
           <TouchableOpacity
             style={{
@@ -59,6 +68,7 @@ export default function MainTabNavigator() {
       <Tab.Screen name="Perfil" component={Perfil} />
       <Tab.Screen name="Calendario" component={CalendarioGlobal} />
       <Tab.Screen name="Documentos" component={Documentos} />
+      <Tab.Screen name="Reservas" component={Reservas} />
 
       {/* Vistas por Rol */}
       {rol === "jefe" && (
@@ -83,7 +93,7 @@ export default function MainTabNavigator() {
       {/* Buzón de Notificaciones */}
       <Tab.Screen name="Notificaciones" component={Notificaciones} />
 
-      {/* Pantalla Premium (Oculta del dial curvo porque le dimos display: none) */}
+      {/* Pantalla Premium */}
       <Tab.Screen
         name="Premium"
         component={Premium}

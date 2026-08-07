@@ -67,6 +67,8 @@ export default function RadialTabBar({ state, descriptors, navigation }) {
         return "person";
       case "Notificaciones":
         return "notifications";
+      case "Reservas":
+        return "business";
       default:
         return "ellipse";
     }

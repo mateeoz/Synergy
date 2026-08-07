@@ -37,7 +37,12 @@ export default function Documentos() {
   );
 
   const cargarDatos = () => {
-    setDocumentos(db.getAllSync("SELECT * FROM documentos ORDER BY id DESC"));
+    // Si es jefe, ve todo. Si es empleado, solo ve los públicos.
+    const queryDocs = isJefe
+      ? "SELECT * FROM documentos ORDER BY id DESC"
+      : "SELECT * FROM documentos WHERE visibilidad = 'Publico' OR visibilidad IS NULL ORDER BY id DESC";
+
+    setDocumentos(db.getAllSync(queryDocs));
     setCategorias(db.getAllSync("SELECT * FROM categorias_documentos"));
   };
 
@@ -103,26 +108,45 @@ export default function Documentos() {
       });
       if (!result.canceled && result.assets.length > 0) {
         const doc = result.assets[0];
-        // Solución al BUG: Buscamos las carpetas frescas directamente de la DB en el momento del click
         const catFrescas = db.getAllSync("SELECT * FROM categorias_documentos");
 
-        const opciones = catFrescas.map((c) => ({
-          text: c.nombre,
-          onPress: () => {
-            const fecha = new Date().toLocaleDateString();
-            db.runSync(
-              "INSERT INTO documentos (titulo, categoria, uri, fecha) VALUES (?, ?, ?, ?)",
-              [doc.name, c.nombre, doc.uri, fecha],
-            );
-            cargarDatos();
-          },
-        }));
-        opciones.push({ text: "Cancelar", style: "cancel" });
-        Alert.alert("¿Dónde lo guardamos?", "Selecciona la carpeta:", opciones);
+        // Primero preguntamos la visibilidad
+        Alert.alert(
+          "Visibilidad del Documento",
+          "¿Quién podrá ver este archivo?",
+          [
+            {
+              text: "Solo yo (Privado)",
+              onPress: () => elegirCarpetaYGuardar(doc, catFrescas, "Privado"),
+            },
+            {
+              text: "Todos (Público)",
+              onPress: () => elegirCarpetaYGuardar(doc, catFrescas, "Publico"),
+            },
+            { text: "Cancelar", style: "cancel" },
+          ],
+        );
       }
     } catch (error) {
       Alert.alert("Error", "No se pudo adjuntar.");
     }
+  };
+
+  const elegirCarpetaYGuardar = (doc, categorias, visibilidad) => {
+    const opciones = categorias.map((c) => ({
+      text: c.nombre,
+      onPress: () => {
+        const fecha = new Date().toLocaleDateString();
+        db.runSync(
+          "INSERT INTO documentos (titulo, categoria, uri, fecha, visibilidad) VALUES (?, ?, ?, ?, ?)",
+          [doc.name, c.nombre, doc.uri, fecha, visibilidad],
+        );
+        Alert.alert("Éxito", `Documento guardado como ${visibilidad}`);
+        cargarDatos();
+      },
+    }));
+    opciones.push({ text: "Cancelar", style: "cancel" });
+    Alert.alert("Ubicación", "Selecciona la carpeta:", opciones);
   };
 
   const moverDocumento = (doc) => {
@@ -231,16 +255,18 @@ export default function Documentos() {
           <TouchableOpacity
             style={styles.docCard}
             onPress={() => abrirDocumento(item.uri)}
-            onLongPress={() => moverDocumento(item)} // NUEVO: Mover dejando presionado
+            onLongPress={() => moverDocumento(item)}
           >
-            <Text style={styles.docIcon}>📄</Text>
+            <Text style={styles.docIcon}>
+              {item.visibilidad === "Privado" ? "🔒" : "📄"}
+            </Text>
             <View style={styles.docInfo}>
               <Text style={styles.docTitle}>{item.titulo}</Text>
               <Text style={styles.docSub}>
                 {item.categoria} • {item.fecha}
               </Text>
             </View>
-            <Text style={styles.openHint}>Compartir</Text>
+            <Text style={styles.openHint}>Abrir</Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
@@ -248,7 +274,7 @@ export default function Documentos() {
         }
       />
 
-      {/* MODAL CARPETA */}
+      {/* Modal de Carpeta (Mismo de antes) */}
       <Modal visible={modalCarpeta} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

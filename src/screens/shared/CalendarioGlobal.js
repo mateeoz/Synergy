@@ -14,6 +14,7 @@ import {
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../../store/useAuthStore";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
@@ -64,18 +65,17 @@ LocaleConfig.defaultLocale = "es";
 export default function CalendarioGlobal() {
   const user = useAuthStore((state) => state.user);
   const isJefe = user?.rol === "jefe";
+  const insets = useSafeAreaInsets(); // <-- Importante para no chocar con barras del sistema
 
   const [eventos, setEventos] = useState([]);
   const [markedDates, setMarkedDates] = useState({});
   const [fechaSeleccionada, setFechaSeleccionada] = useState("");
 
-  // Modal de Evento
   const [modalVisible, setModalVisible] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("reunion");
   const [visibilidad, setVisibilidad] = useState("global");
 
-  // Selección de empleados
   const [listaUsuarios, setListaUsuarios] = useState([]);
   const [usuariosSeleccionados, setUsuariosSeleccionados] = useState([]);
 
@@ -97,7 +97,6 @@ export default function CalendarioGlobal() {
     try {
       const resultado = db.getAllSync("SELECT * FROM eventos");
 
-      // Filtrar según los permisos del usuario actual
       const eventosPermitidos = resultado.filter((ev) => {
         if (ev.visibilidad === "global") return true;
         if (ev.visibilidad === "privado" && isJefe) return true;
@@ -157,7 +156,6 @@ export default function CalendarioGlobal() {
     }
   };
 
-  // Función segura para combinar las marcas y la selección
   const getMarkedDates = () => {
     if (!fechaSeleccionada) return markedDates;
     return {
@@ -173,7 +171,8 @@ export default function CalendarioGlobal() {
   const eventosDelDia = eventos.filter((ev) => ev.fecha === fechaSeleccionada);
 
   return (
-    <View style={styles.container}>
+    // Agregamos padding inferior dinámico para que la lista no quede tapada por el Dock
+    <View style={[styles.container, { paddingBottom: 80 + insets.bottom }]}>
       <Text style={styles.headerTitle}>Calendario</Text>
       <Calendar
         markingType={"multi-dot"}
@@ -207,7 +206,7 @@ export default function CalendarioGlobal() {
 
       {isJefe && (
         <TouchableOpacity
-          style={styles.fab}
+          style={[styles.fab, { bottom: 100 + insets.bottom }]} // <-- SUBIMOS EL BOTÓN AQUÍ
           onPress={() => {
             if (!fechaSeleccionada) Alert.alert("Aviso", "Toca un día.");
             else setModalVisible(true);
@@ -300,7 +299,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 10,
   },
-  eventListContainer: { flex: 1, padding: 20 },
+  eventListContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
   subtitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -320,7 +319,6 @@ const styles = StyleSheet.create({
   eventType: { fontSize: 12, color: COLORS.secondary, marginTop: 4 },
   fab: {
     position: "absolute",
-    bottom: 20,
     right: 20,
     backgroundColor: COLORS.primary,
     paddingVertical: 15,

@@ -119,7 +119,8 @@ export const initDB = () => {
         titulo TEXT,
         categoria TEXT,
         uri TEXT,
-        fecha TEXT
+        fecha TEXT,
+        visibilidad TEXT DEFAULT 'Publico'
       );
 
       CREATE TABLE IF NOT EXISTS categorias_documentos (
@@ -127,8 +128,32 @@ export const initDB = () => {
         nombre TEXT UNIQUE
       );
 
+      -- NUEVA TABLA: RESERVAS
+      CREATE TABLE IF NOT EXISTS reservas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario INTEGER,
+        espacio TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        hora TEXT NOT NULL,
+        razon TEXT,
+        firma_empleado TEXT NOT NULL,
+        estado TEXT DEFAULT 'Aprobada',
+        FOREIGN KEY(id_usuario) REFERENCES usuarios(id)
+      );
+
       INSERT OR IGNORE INTO categorias_documentos (nombre) VALUES ('Actas'), ('Recibos'), ('Normativas');
     `);
+
+    // MIGRACIÓN SEGURA: Intenta agregar la columna a la tabla vieja sin borrar datos.
+    // Si la columna ya existe, el catch ignora el error silenciosamente.
+    try {
+      db.execSync(
+        "ALTER TABLE documentos ADD COLUMN visibilidad TEXT DEFAULT 'Publico';",
+      );
+      console.log("Columna visibilidad agregada a documentos.");
+    } catch (e) {
+      // La columna ya existía, no pasa nada
+    }
 
     console.log("Base de datos Synergy inicializada correctamente 🚀");
   } catch (error) {
