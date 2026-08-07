@@ -21,6 +21,9 @@ export default function Inventario() {
 
   const [productos, setProductos] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // Nuevo estado para saber si estamos editando o creando
+  const [editId, setEditId] = useState(null);
   const [nombre, setNombre] = useState("");
   const [stock, setStock] = useState("");
   const [costo, setCosto] = useState("");
@@ -37,18 +40,53 @@ export default function Inventario() {
     setProductos(res);
   };
 
+  const abrirModalNuevo = () => {
+    setEditId(null);
+    setNombre("");
+    setStock("");
+    setCosto("");
+    setVenta("");
+    setModalVisible(true);
+  };
+
+  const abrirModalEdicion = (item) => {
+    setEditId(item.id);
+    setNombre(item.nombre);
+    setStock(item.stock.toString());
+    setCosto(item.precio_costo.toString());
+    setVenta(item.precio_venta.toString());
+    setModalVisible(true);
+  };
+
   const guardarProducto = () => {
-    if (!nombre || !stock || !costo || !venta) {
+    if (!nombre || stock === "" || costo === "" || venta === "") {
       return Alert.alert("Error", "Por favor completa todos los campos.");
     }
 
     try {
-      db.runSync(
-        "INSERT INTO inventario (nombre, stock, precio_costo, precio_venta) VALUES (?, ?, ?, ?)",
-        [nombre, parseInt(stock), parseFloat(costo), parseFloat(venta)],
-      );
+      if (editId) {
+        // ACTUALIZAR PRODUCTO EXISTENTE
+        db.runSync(
+          "UPDATE inventario SET nombre = ?, stock = ?, precio_costo = ?, precio_venta = ? WHERE id = ?",
+          [
+            nombre,
+            parseInt(stock),
+            parseFloat(costo),
+            parseFloat(venta),
+            editId,
+          ],
+        );
+        Alert.alert("Éxito", "Producto actualizado correctamente.");
+      } else {
+        // CREAR NUEVO PRODUCTO
+        db.runSync(
+          "INSERT INTO inventario (nombre, stock, precio_costo, precio_venta) VALUES (?, ?, ?, ?)",
+          [nombre, parseInt(stock), parseFloat(costo), parseFloat(venta)],
+        );
+        Alert.alert("Éxito", "Producto agregado al inventario.");
+      }
 
-      // Verificación de stock bajo (Menor o igual a 5)
+      // Verificación de stock bajo (Menor o igual a 5) para notificar al Jefe
       if (parseInt(stock) <= 5) {
         const mensaje = `El producto "${nombre}" tiene stock crítico (${stock} unidades). Requiere renovación.`;
         const fecha = new Date().toLocaleDateString();
@@ -58,15 +96,9 @@ export default function Inventario() {
         );
       }
 
-      Alert.alert("Éxito", "Producto agregado al inventario.");
       setModalVisible(false);
-      setNombre("");
-      setStock("");
-      setCosto("");
-      setVenta("");
       cargarInventario();
     } catch (error) {
-      // AQUÍ ESTÁ EL CAMBIO: Imprimimos el error real en la consola de tu terminal
       console.error("DETALLE DEL ERROR EN SQLITE:", error);
       Alert.alert(
         "Error de Base de Datos",
@@ -78,13 +110,10 @@ export default function Inventario() {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Inventario de Productos</Text>
+        <Text style={styles.headerTitle}>Inventario</Text>
         {isJefe && (
-          <TouchableOpacity
-            style={styles.btnNew}
-            onPress={() => setModalVisible(true)}
-          >
-            <Text style={styles.btnNewText}>+ Nuevo Producto</Text>
+          <TouchableOpacity style={styles.btnNew} onPress={abrirModalNuevo}>
+            <Text style={styles.btnNewText}>+ Nuevo</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -93,12 +122,19 @@ export default function Inventario() {
         data={productos}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={[styles.card, item.stock <= 5 && styles.cardCritico]}>
+          <TouchableOpacity
+            style={[styles.card, item.stock <= 5 && styles.cardCritico]}
+            onPress={() => (isJefe ? abrirModalEdicion(item) : null)}
+            activeOpacity={isJefe ? 0.7 : 1}
+          >
             <View>
               <Text style={styles.prodName}>{item.nombre}</Text>
               <Text style={styles.prodPrices}>
                 Costo: ${item.precio_costo} | Venta: ${item.precio_venta}
               </Text>
+              {isJefe && (
+                <Text style={styles.editHint}>✏️ Toca para editar</Text>
+              )}
             </View>
             <View style={styles.stockBox}>
               <Text
@@ -110,7 +146,7 @@ export default function Inventario() {
                 <Text style={styles.criticoText}>¡Bajo!</Text>
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
@@ -119,35 +155,48 @@ export default function Inventario() {
         }
       />
 
-      {/* MODAL NUEVO PRODUCTO */}
+      {/* MODAL CREAR / EDITAR PRODUCTO */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Agregar al Inventario</Text>
+            <Text style={styles.modalTitle}>
+              {editId ? "Editar Producto" : "Agregar al Inventario"}
+            </Text>
 
+            <Text style={styles.label}>Nombre del producto:</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Nombre del producto"
+              style={styles.inputDark}
+              placeholderTextColor="#9CA3AF"
+              placeholder="Ej: Memoria RAM 8GB"
               value={nombre}
               onChangeText={setNombre}
             />
+
+            <Text style={styles.label}>Cantidad en stock:</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Stock inicial"
+              style={styles.inputDark}
+              placeholderTextColor="#9CA3AF"
+              placeholder="Stock actual"
               keyboardType="numeric"
               value={stock}
               onChangeText={setStock}
             />
+
+            <Text style={styles.label}>Precio de costo ($):</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Precio de costo ($)"
+              style={styles.inputDark}
+              placeholderTextColor="#9CA3AF"
+              placeholder="Lo que te costó"
               keyboardType="numeric"
               value={costo}
               onChangeText={setCosto}
             />
+
+            <Text style={styles.label}>Precio de venta ($):</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Precio de venta ($)"
+              style={styles.inputDark}
+              placeholderTextColor="#9CA3AF"
+              placeholder="A cuánto lo vendes"
               keyboardType="numeric"
               value={venta}
               onChangeText={setVenta}
@@ -207,6 +256,12 @@ const styles = StyleSheet.create({
   },
   prodName: { fontSize: 16, fontWeight: "bold", color: COLORS.text },
   prodPrices: { fontSize: 13, color: COLORS.secondary, marginTop: 4 },
+  editHint: {
+    fontSize: 11,
+    color: COLORS.primary,
+    marginTop: 6,
+    fontStyle: "italic",
+  },
   stockBox: { alignItems: "flex-end" },
   stockText: { fontSize: 16, fontWeight: "bold", color: COLORS.primary },
   textDanger: { color: COLORS.danger },
@@ -230,12 +285,17 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginBottom: 15,
   },
-  input: {
-    backgroundColor: COLORS.background,
+  label: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: COLORS.textMuted,
+    marginBottom: 5,
+  },
+  inputDark: {
+    backgroundColor: "#1F2937",
+    color: "#FFFFFF",
     padding: 12,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
     marginBottom: 12,
   },
   modalButtons: {

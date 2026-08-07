@@ -1,5 +1,5 @@
 // src/screens/shared/Perfil.js
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import * as LocalAuthentication from "expo-local-authentication";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuthStore } from "../../store/useAuthStore";
 import db from "../../database/initDB";
 import { COLORS } from "../../theme/colors";
@@ -21,15 +22,31 @@ export default function Perfil() {
   const logout = useAuthStore((state) => state.logout);
   const [fichaje, setFichaje] = useState(null);
 
-  // Estados para el Modal de Tickets
   const [modalVisible, setModalVisible] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   const [prioridad, setPrioridad] = useState("Normal");
 
+  useFocusEffect(
+    useCallback(() => {
+      try {
+        const res = db.getAllSync(
+          "SELECT tipo FROM asistencia WHERE id_usuario = ? ORDER BY id DESC LIMIT 1",
+          [user.id],
+        );
+        if (res.length > 0) {
+          setFichaje(res[0].tipo);
+        } else {
+          setFichaje("Salida");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }, [user.id]),
+  );
+
   const handleAsistencia = async () => {
-    // ... (El código de la huella queda igual que antes)
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
@@ -40,15 +57,33 @@ export default function Perfil() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "Fichar",
       });
+
       if (result.success) {
-        const fechaActual = new Date().toLocaleString();
-        const tipo = fichaje === "entrada" ? "salida" : "entrada";
+        // Obtenemos la hora EXACTA LOCAL del celular
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+        const seconds = String(now.getSeconds()).padStart(2, "0");
+
+        // Armamos el formato AAAA-MM-DD HH:MM:SS con la hora de tu país
+        const fechaLocalDB = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        const fechaLocalAlerta = now.toLocaleString();
+
+        const tipoNuevo = fichaje === "Entrada" ? "Salida" : "Entrada";
+
         db.runSync(
           "INSERT INTO asistencia (id_usuario, fecha_hora, tipo) VALUES (?, ?, ?)",
-          [user.id, fechaActual, tipo],
+          [user.id, fechaLocalDB, tipoNuevo],
         );
-        setFichaje(tipo);
-        Alert.alert("Éxito", `Fichaste tu ${tipo} a las ${fechaActual}`);
+
+        setFichaje(tipoNuevo);
+        Alert.alert(
+          "Éxito",
+          `Fichaste tu ${tipoNuevo} a las ${fechaLocalAlerta}`,
+        );
       }
     } catch (error) {
       console.error(error);
@@ -92,18 +127,17 @@ export default function Perfil() {
       <TouchableOpacity
         style={[
           styles.btn,
-          fichaje === "entrada" ? styles.btnSalida : styles.btnEntrada,
+          fichaje === "Entrada" ? styles.btnSalida : styles.btnEntrada,
         ]}
         onPress={handleAsistencia}
       >
         <Text style={styles.btnText}>
-          {fichaje === "entrada"
+          {fichaje === "Entrada"
             ? "Fichar Salida (Huella)"
             : "Fichar Entrada (Huella)"}
         </Text>
       </TouchableOpacity>
 
-      {/* Botón para reportar fallas (NUEVO) */}
       <TouchableOpacity
         style={[styles.btn, styles.btnWarning]}
         onPress={() => setModalVisible(true)}
@@ -115,7 +149,6 @@ export default function Perfil() {
         <Text style={styles.btnText}>Cerrar Sesión</Text>
       </TouchableOpacity>
 
-      {/* MODAL DE TICKET */}
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -129,7 +162,7 @@ export default function Perfil() {
             />
             <TextInput
               style={[styles.input, { height: 80 }]}
-              placeholder="Detalle (Ej: El sistema operativo tarda mucho en iniciar, el disco rígido está al 100%. Requiere clonación a SSD.)"
+              placeholder="Detalle (Ej: El sistema operativo tarda mucho en iniciar...)"
               value={descripcion}
               onChangeText={setDescripcion}
               multiline
@@ -215,8 +248,6 @@ const styles = StyleSheet.create({
   btnWarning: { backgroundColor: "#F59E0B" },
   btnLogout: { backgroundColor: COLORS.danger },
   btnText: { color: COLORS.surface, fontWeight: "bold", fontSize: 16 },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

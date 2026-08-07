@@ -1,14 +1,11 @@
 // src/navigation/MainTabNavigator.js
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { View, Text, TouchableOpacity } from "react-native";
 import { useAuthStore } from "../store/useAuthStore";
 import { COLORS } from "../theme/colors";
 
-// Importamos las pantallas reales
+// Importamos las pantallas
 import Perfil from "../screens/shared/Perfil";
 import GestionUsuarios from "../screens/admin/GestionUsuarios";
 import ListaTickets from "../screens/tech/ListaTickets";
@@ -23,25 +20,22 @@ import Premium from "../screens/shared/Premium";
 import AuditoriaTickets from "../screens/admin/AuditoriaTickets";
 import Inventario from "../screens/admin/Inventario";
 
+// Importamos el componente giratorio REPARADO
+import RadialTabBar from "../components/RadialTabBar";
+
 const Tab = createBottomTabNavigator();
 
 export default function MainTabNavigator() {
   const user = useAuthStore((state) => state.user);
   const rol = user?.rol || "empleado";
-  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
-      screenOptions={({ route, navigation }) => ({
+      tabBar={(props) => <RadialTabBar {...props} />} // <-- INYECTAMOS EL MENÚ RADIAL AQUÍ
+      screenOptions={({ navigation }) => ({
         headerStyle: { backgroundColor: COLORS.primary },
         headerTintColor: COLORS.surface,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.secondary,
-        tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-          height: insets.bottom > 0 ? 60 + insets.bottom : 70,
-        },
+        headerTitleAlign: "center",
         // BOTÓN PREMIUM EN LA CABECERA
         headerRight: () => (
           <TouchableOpacity
@@ -59,41 +53,14 @@ export default function MainTabNavigator() {
             </Text>
           </TouchableOpacity>
         ),
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === "Perfil")
-            iconName = focused ? "person" : "person-outline";
-          else if (route.name === "Calendario")
-            iconName = focused ? "calendar" : "calendar-outline";
-          else if (route.name === "Documentos")
-            iconName = focused ? "folder" : "folder-outline";
-          else if (route.name === "Notificaciones")
-            iconName = focused ? "notifications" : "notifications-outline";
-          else if (route.name === "Gestión")
-            iconName = focused ? "briefcase" : "briefcase-outline";
-          else if (route.name === "Finanzas")
-            iconName = focused ? "stats-chart" : "stats-chart-outline";
-          else if (route.name === "Auditoría")
-            iconName = focused ? "clipboard" : "clipboard-outline";
-          else if (route.name === "Mi Trabajo")
-            iconName = focused ? "cash" : "cash-outline";
-          else if (route.name === "Mantenimiento")
-            iconName = focused ? "build" : "build-outline";
-          else if (route.name === "Aud. Tickets")
-            iconName = focused ? "hardware-chip" : "hardware-chip-outline";
-          else if (route.name === "Limpieza")
-            iconName = focused ? "sparkles" : "sparkles-outline";
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
       })}
     >
       {/* Vistas Generales */}
       <Tab.Screen name="Perfil" component={Perfil} />
       <Tab.Screen name="Calendario" component={CalendarioGlobal} />
       <Tab.Screen name="Documentos" component={Documentos} />
-      {/* Vistas por Rol */}
 
+      {/* Vistas por Rol */}
       {rol === "jefe" && (
         <>
           <Tab.Screen name="Gestión" component={GestionUsuarios} />
@@ -112,16 +79,17 @@ export default function MainTabNavigator() {
       {rol === "limpieza" && (
         <Tab.Screen name="Limpieza" component={ChecklistLimpieza} />
       )}
+
       {/* Buzón de Notificaciones */}
       <Tab.Screen name="Notificaciones" component={Notificaciones} />
-      {/* Pantalla Premium (Oculta del menú de pestañas, pero accesible desde el botón PRO) */}
-      {/* Pantalla Premium oculta sin dejar espacios */}
+
+      {/* Pantalla Premium (Oculta del dial curvo porque le dimos display: none) */}
       <Tab.Screen
         name="Premium"
         component={Premium}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: "none" }, // <-- ESTO ELIMINA EL HUECO
+          tabBarItemStyle: { display: "none" },
         }}
       />
     </Tab.Navigator>
